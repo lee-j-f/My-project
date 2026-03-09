@@ -7,7 +7,7 @@ import os
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
 
 from preprocessing.data_loader import DEAPDataLoader
-from preprocessing.dataset import create_subject_dependent_loaders
+from preprocessing.dataset import create_subject_dependent_loaders, create_trial_based_loaders
 from models.eeg_emotion_model import EEGEmotionRecognitionModel
 from models.mobilenetv2 import MobileNetV2_Feature_Extractor
 from models.capsule_network import EmotionCapsuleNet
@@ -127,7 +127,7 @@ class Trainer:
             optimizer, T_max=num_epochs, eta_min=1e-6
         )
 
-        early_stopping = EarlyStopping(patience=30, min_delta=0.002)
+        early_stopping = EarlyStopping(patience=15, min_delta=0.001)
 
         history = {
             'epochs': [], 'train_loss': [], 'train_acc': [],
@@ -173,6 +173,9 @@ class Trainer:
                       model_name='full_model', create_model_fn=None):
         print(f"    Subject: s{subject_id:02d}, Dim: {emotion_dim}, Model: {model_name}")
 
+        unique, counts = np.unique(labels, return_counts=True)
+        print(f"    标签分布: {dict(zip(unique.tolist(), counts.tolist()))}")
+
         fold_accuracies = []
         total_cm = np.zeros((2, 2), dtype=int)
         n_splits = self.config.get('n_splits', 10)
@@ -180,7 +183,7 @@ class Trainer:
         for fold_idx in range(n_splits):
             print(f"\n    Fold {fold_idx + 1}/{n_splits}")
 
-            train_loader, test_loader = create_subject_dependent_loaders(
+            train_loader, test_loader = create_trial_based_loaders(
                 segments, labels,
                 batch_size=self.config.get('batch_size', 64),
                 n_splits=n_splits,
@@ -413,9 +416,9 @@ def main():
     config = {
         'data_dir': './data/DEAP/data_preprocessed_python/',
         'batch_size': 64,
-        'num_epochs': 40,
-        'lr': 5e-4,
-        'weight_decay': 5e-4,
+        'num_epochs': 100,
+        'lr': 1e-3,
+        'weight_decay': 1e-4,
         'n_splits': 10,
         'emotion_dimensions': ['valence', 'arousal', 'dominance'],
     }

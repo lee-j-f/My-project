@@ -6,7 +6,7 @@ import json
 import os
 
 from preprocessing.data_loader import DEAPDataLoader
-from preprocessing.dataset import create_subject_dependent_loaders
+from preprocessing.dataset import create_subject_dependent_loaders, create_trial_based_loaders
 from models.eeg_emotion_model import EEGEmotionRecognitionModel
 from models.loss import MarginLoss
 
@@ -49,6 +49,9 @@ def run_single_subject(subject_id, emotion_dim, config):
 
     print(f"  数据形状: {segments.shape}, 标签形状: {labels.shape}")
 
+    unique, counts = np.unique(labels, return_counts=True)
+    print(f"  标签分布: {dict(zip(unique.tolist(), counts.tolist()))}")
+
     fold_accuracies = []
     fold_f1_scores = []
     total_cm = np.zeros((2, 2), dtype=int)
@@ -57,7 +60,7 @@ def run_single_subject(subject_id, emotion_dim, config):
     for fold_idx in range(n_splits):
         print(f"\n  Fold {fold_idx + 1}/{n_splits}")
 
-        train_loader, test_loader = create_subject_dependent_loaders(
+        train_loader, test_loader = create_trial_based_loaders(
             segments, labels,
             batch_size=config.get('batch_size', 64),
             n_splits=n_splits,
@@ -73,9 +76,9 @@ def run_single_subject(subject_id, emotion_dim, config):
 
         history, best_acc, best_cm = trainer.train_single_fold(
             model, train_loader, test_loader, criterion,
-            num_epochs=config.get('num_epochs', 40),
-            lr=config.get('lr', 5e-4),
-            weight_decay=config.get('weight_decay', 5e-4),
+            num_epochs=config.get('num_epochs', 100),
+            lr=config.get('lr', 1e-3),
+            weight_decay=config.get('weight_decay', 1e-4),
         )
 
         history_path = os.path.join(
@@ -137,12 +140,12 @@ def main():
     parser.add_argument('--dim', '-d', type=str, default='valence',
                         choices=['valence', 'arousal', 'dominance'],
                         help='情绪维度 (默认: valence)')
-    parser.add_argument('--epochs', type=int, default=40,
-                        help='训练轮数 (默认: 40)')
+    parser.add_argument('--epochs', type=int, default=100,
+                        help='训练轮数 (默认: 100)')
     parser.add_argument('--batch_size', type=int, default=64,
                         help='批大小 (默认: 64)')
-    parser.add_argument('--lr', type=float, default=5e-4,
-                        help='学习率 (默认: 5e-4)')
+    parser.add_argument('--lr', type=float, default=1e-3,
+                        help='学习率 (默认: 1e-3)')
     args = parser.parse_args()
 
     config = {
@@ -150,7 +153,7 @@ def main():
         'batch_size': args.batch_size,
         'num_epochs': args.epochs,
         'lr': args.lr,
-        'weight_decay': 5e-4,
+        'weight_decay': 1e-4,
         'n_splits': 10,
     }
 
